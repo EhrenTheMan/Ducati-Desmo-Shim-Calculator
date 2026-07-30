@@ -13,7 +13,13 @@
     <h1>Desmo Shim Calculator</h1>
     <span class="sub">Opening &amp; closing shims &mdash; Ducati desmodromic engines</span>
   </div>
-  <div class="storage" id="storageStatus" title="Where your data is being saved">saving&hellip;</div>
+  <div class="topRight" id="topRight">
+    <div class="kofi" id="kofiBar" hidden>
+      <span>Useful? <a href="https://ko-fi.com/ehrenl" target="_blank" rel="noopener noreferrer">Buy me a coffee</a></span>
+      <button type="button" id="kofiHide" title="Hide this permanently" aria-label="Hide the Ko-fi message">&times;</button>
+    </div>
+    <div class="storage" id="storageStatus" hidden></div>
+  </div>
 </header>
 
 <main>
@@ -98,6 +104,7 @@
 
   <div class="row wrap gap">
     <button type="button" class="btn" id="addCyl">+ Add cylinder</button>
+    <button type="button" class="btn" id="restoreCyl" title="Put back any cylinder from this layout that has been removed, without touching what you have already entered">Restore missing cylinders</button>
     <button type="button" class="btn danger ghost" id="clearMeas">Clear all measurements</button>
   </div>
 
@@ -107,6 +114,11 @@
     <div class="tallies" id="tallies"></div>
     <h3>Shims to buy</h3>
     <div id="shopping" class="shopping">Enter some measurements above.</div>
+    <p class="supplier">
+      Need shims? <a href="https://desmotimes.com" target="_blank" rel="noopener noreferrer">Desmo Times</a>
+      is the go-to in the community &mdash; quality parts, quick shipping, and they stock opening and closing
+      shim sizes for basically every major Ducati engine family.
+    </p>
   </section>
 
   <!-- ============ SAVE / EXPORT ============ -->
@@ -153,6 +165,7 @@
 
   <footer>
     Everything stays in your browser (cookies + local storage). Download the .json if you want a real backup.
+    <button type="button" class="linkish" id="kofiShow" hidden>Show support link</button>
   </footer>
 </main>
 

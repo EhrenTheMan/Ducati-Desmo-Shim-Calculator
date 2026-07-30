@@ -25,10 +25,18 @@ function el(tag, cls, txt) {
   if (txt !== undefined) e.textContent = txt;
   return e;
 }
-function toast(msg) {
+function toast(msg, action) {
   const t = el('div', 'toast', msg);
+  let ttl = 2200;
+  if (action) {
+    ttl = 9000;
+    const b = el('button', 'toastBtn', action.label);
+    b.type = 'button';
+    b.addEventListener('click', () => { t.remove(); action.fn(); });
+    t.appendChild(b);
+  }
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2200);
+  setTimeout(() => t.remove(), ttl);
 }
 
 /* ---------------- spec presets ----------------
@@ -138,6 +146,7 @@ const CK = 'desmo';
 const CK_MAX_DAYS = 3650;
 const CHUNK = 3000;
 let storageMode = '';
+let storageFailed = false;
 
 function setCookie(name, value, days) {
   const d = new Date(Date.now() + days * 864e5).toUTCString();
@@ -185,9 +194,9 @@ function persist() {
     : okCookie ? 'Saved \u2192 cookies'
       : okLs ? 'Cookies blocked (file:// ?) \u2013 saved to local storage'
         : 'Nothing could be saved \u2013 use Download .json';
-  const box = $('#storageStatus');
-  box.textContent = storageMode;
-  box.classList.toggle('bad', !okCookie);
+  storageFailed = !okCookie && !okLs;
+  $('#topRight').title = storageMode;
+  renderTopRight();
 }
 function restore() {
   let raw = cookieRead();
@@ -202,6 +211,24 @@ let state;
 function cloneSpec(s) { return JSON.parse(JSON.stringify(s)); }
 
 /* fresh, empty valve data for a layout */
+function newCylinder(name) {
+  return {
+    name: name,
+    valves: LAYOUTS[state ? state.layoutId : 'l2_4v'].valves.map(v => ({
+      name: v.n, group: v.g,
+      opening: { clr: '', shim: '' },
+      closing: { clr: '', shim: '' }
+    }))
+  };
+}
+
+/* first layout cylinder name that isn't in use, else a numbered one */
+function nextCylName() {
+  const have = state.cylinders.map(c => c.name.trim().toLowerCase());
+  const free = LAYOUTS[state.layoutId].cyls.find(n => have.indexOf(n.toLowerCase()) === -1);
+  return free || 'Cylinder ' + (state.cylinders.length + 1);
+}
+
 function freshCylinders(layoutId) {
   const L = LAYOUTS[layoutId];
   return L.cyls.map(nm => ({
@@ -449,9 +476,17 @@ function renderCylinders() {
     const rm = el('button', 'btn sm danger ghost', 'Remove');
     rm.type = 'button';
     rm.addEventListener('click', () => {
-      if (state.cylinders.length <= 1) return;
+      if (state.cylinders.length <= 1) { toast('Keep at least one cylinder.'); return; }
+      const removed = JSON.parse(JSON.stringify(cyl));
       state.cylinders.splice(ci, 1);
       renderCylinders(); recalc();
+      toast('Removed "' + (removed.name || 'cylinder') + '"', {
+        label: 'Undo',
+        fn: () => {
+          state.cylinders.splice(Math.min(ci, state.cylinders.length), 0, removed);
+          renderCylinders(); recalc();
+        }
+      });
     });
     head.appendChild(rm);
     card.appendChild(head);
@@ -668,6 +703,9 @@ function buildReport() {
       L.push((kind === 'opening' ? 'Opening ' : 'Closing ') + size + ' mm x' + shop[k]);
     });
     L.push('');
+    L.push('Shim supplier: Desmo Times (desmotimes.com) - opening and closing shims');
+    L.push('for most Ducati engine families, quick shipping.');
+    L.push('');
   }
   if (b.notes) { L.push('=== Notes ==='); L.push(b.notes); L.push(''); }
   return L.join('\n');
@@ -798,12 +836,24 @@ function bind() {
   });
 
   $('#addCyl').addEventListener('click', () => {
-    const L = LAYOUTS[state.layoutId];
-    state.cylinders.push({
-      name: 'Cylinder ' + (state.cylinders.length + 1),
-      valves: L.valves.map(v => ({ name: v.n, group: v.g, opening: { clr: '', shim: '' }, closing: { clr: '', shim: '' } }))
+    state.cylinders.push(newCylinder(nextCylName()));
+    renderCylinders(); recalc();
+  });
+
+  $('#restoreCyl').addEventListener('click', () => {
+    const have = state.cylinders.map(c => c.name.trim().toLowerCase());
+    const missing = LAYOUTS[state.layoutId].cyls.filter(n => have.indexOf(n.toLowerCase()) === -1);
+    if (!missing.length) { toast('All cylinders for this layout are already here.'); return; }
+    missing.forEach(n => state.cylinders.push(newCylinder(n)));
+    // put them back in the layout's own order where possible
+    const order = LAYOUTS[state.layoutId].cyls.map(n => n.toLowerCase());
+    state.cylinders.sort((a, b) => {
+      const ia = order.indexOf(a.name.trim().toLowerCase());
+      const ib = order.indexOf(b.name.trim().toLowerCase());
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
     });
     renderCylinders(); recalc();
+    toast('Restored: ' + missing.join(', '));
   });
 
   $('#clearMeas').addEventListener('click', () => {
@@ -873,9 +923,44 @@ function bind() {
   });
 }
 
+/* ---------------- ko-fi note ----------------
+   Stored outside the service data so importing a .json
+   or clearing measurements never brings it back.
+--------------------------------------------- */
+const KOFI_KEY = CK + '_kofi_hidden';
+
+function kofiHidden() {
+  return lsRead(KOFI_KEY) === '1' || getCookie(KOFI_KEY) === '1';
+}
+
+/* Top-right slot: the ko-fi note normally, or a warning if nothing can be saved.
+   The full storage detail always lives in the tooltip. */
+function renderTopRight() {
+  const box = $('#storageStatus');
+  box.hidden = !storageFailed;
+  box.textContent = storageFailed ? 'Not saved \u2013 use Download .json' : '';
+  box.classList.toggle('bad', storageFailed);
+  $('#kofiBar').hidden = storageFailed || kofiHidden();
+  $('#kofiShow').hidden = !kofiHidden();
+}
+function bindKofi() {
+  $('#kofiHide').addEventListener('click', () => {
+    lsWrite(KOFI_KEY, '1');
+    setCookie(KOFI_KEY, '1', CK_MAX_DAYS);
+    renderTopRight();
+  });
+  $('#kofiShow').addEventListener('click', () => {
+    try { localStorage.removeItem(KOFI_KEY); } catch (e) { /* ignore */ }
+    delCookie(KOFI_KEY);
+    renderTopRight();
+  });
+  renderTopRight();
+}
+
 /* ---------------- boot ---------------- */
 fillSelects();
 bind();
+bindKofi();
 refreshSnapSel();
 const saved = restore();
 loadState(saved && saved.cylinders ? saved : defaultState());
