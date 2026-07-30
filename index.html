@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Desmo Shim Calculator</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <h1>Desmo Shim Calculator</h1>
+    <span class="sub">Opening &amp; closing shims &mdash; Ducati desmodromic engines</span>
+  </div>
+  <div class="storage" id="storageStatus" title="Where your data is being saved">saving&hellip;</div>
+</header>
+
+<main>
+
+  <!-- ============ SETUP ============ -->
+  <details class="card" id="setupCard" open>
+    <summary><span class="sumTitle">Setup &amp; specs</span><span class="sumHint" id="setupHint"></span></summary>
+
+    <div class="grid2">
+      <label class="fld">
+        <span>Engine</span>
+        <select id="engineSel"></select>
+      </label>
+      <label class="fld">
+        <span>Head layout</span>
+        <select id="layoutSel"></select>
+      </label>
+    </div>
+
+    <p class="engineNote" id="engineNote"></p>
+
+    <div class="row wrap gap tightTop">
+      <label class="fld grow">
+        <span>Clearance spec preset</span>
+        <select id="specSel"></select>
+      </label>
+      <div class="quick">
+        <button type="button" class="btn" data-quick="oe">OE spec</button>
+        <button type="button" class="btn accent" data-quick="tight">Recommended tight</button>
+      </div>
+    </div>
+
+    <p class="warn" id="specWarn" hidden></p>
+
+    <label class="chk"><input type="checkbox" id="sepEx"> Use different specs for exhaust valves</label>
+
+    <div id="specEditors" class="specEditors"></div>
+
+    <div class="grid2 tightTop">
+      <label class="fld">
+        <span>Keep / no-adjust rule</span>
+        <select id="keepPolicy">
+          <option value="target">Keep only if inside target range (recommended)</option>
+          <option value="check">Keep if inside check (service limit) range</option>
+        </select>
+      </label>
+      <label class="fld">
+        <span>Available shim sizes</span>
+        <div class="shimCfg">
+          <span class="lbl">Open</span>
+          <input type="text" inputmode="decimal" id="shOpMin" class="mini" title="Smallest opening shim">
+          <span class="dash">&ndash;</span>
+          <input type="text" inputmode="decimal" id="shOpMax" class="mini" title="Largest opening shim">
+          <span class="lbl">step</span>
+          <input type="text" inputmode="decimal" id="shOpStep" class="mini" title="Opening shim increment">
+        </div>
+        <div class="shimCfg">
+          <span class="lbl">Close</span>
+          <input type="text" inputmode="decimal" id="shClMin" class="mini" title="Smallest closing shim">
+          <span class="dash">&ndash;</span>
+          <input type="text" inputmode="decimal" id="shClMax" class="mini" title="Largest closing shim">
+          <span class="lbl">step</span>
+          <input type="text" inputmode="decimal" id="shClStep" class="mini" title="Closing shim increment">
+        </div>
+      </label>
+    </div>
+  </details>
+
+  <!-- ============ BIKE ============ -->
+  <details class="card" id="bikeCard">
+    <summary><span class="sumTitle">Bike &amp; service info</span><span class="sumHint" id="bikeHint"></span></summary>
+    <div class="grid3">
+      <label class="fld"><span>Bike / name</span><input type="text" id="bkName" placeholder="e.g. 1198 S"></label>
+      <label class="fld"><span>Date</span><input type="date" id="bkDate"></label>
+      <label class="fld"><span>Odometer</span><input type="text" id="bkOdo" placeholder="e.g. 24 000 km"></label>
+    </div>
+    <label class="fld"><span>Notes</span><textarea id="bkNotes" rows="3" placeholder="Belts, plugs, anything worth remembering&hellip;"></textarea></label>
+  </details>
+
+  <!-- ============ VALVES ============ -->
+  <section id="cylinders"></section>
+
+  <div class="row wrap gap">
+    <button type="button" class="btn" id="addCyl">+ Add cylinder</button>
+    <button type="button" class="btn danger ghost" id="clearMeas">Clear all measurements</button>
+  </div>
+
+  <!-- ============ SUMMARY ============ -->
+  <section class="card" id="summaryCard">
+    <h2>Summary</h2>
+    <div class="tallies" id="tallies"></div>
+    <h3>Shims to buy</h3>
+    <div id="shopping" class="shopping">Enter some measurements above.</div>
+  </section>
+
+  <!-- ============ SAVE / EXPORT ============ -->
+  <section class="card">
+    <h2>Save &amp; export</h2>
+    <div class="row wrap gap">
+      <button type="button" class="btn" id="dlTxt">Download report (.txt)</button>
+      <button type="button" class="btn" id="dlJson">Download data (.json)</button>
+      <button type="button" class="btn" id="dlCsv">Download table (.csv)</button>
+      <button type="button" class="btn" id="copyTxt">Copy report</button>
+      <button type="button" class="btn" id="printBtn">Print</button>
+      <label class="btn fileBtn">Import .json<input type="file" id="impJson" accept=".json,application/json" hidden></label>
+    </div>
+
+    <div class="row wrap gap tightTop">
+      <label class="fld grow">
+        <span>Saved services (in this browser)</span>
+        <select id="snapSel"><option value="">&mdash; none saved &mdash;</option></select>
+      </label>
+      <div class="quick">
+        <button type="button" class="btn" id="snapSave">Save current</button>
+        <button type="button" class="btn" id="snapLoad">Load</button>
+        <button type="button" class="btn danger ghost" id="snapDel">Delete</button>
+      </div>
+    </div>
+
+    <details class="mini-details">
+      <summary>Report preview</summary>
+      <pre id="reportPre" class="report"></pre>
+    </details>
+  </section>
+
+  <details class="card">
+    <summary><span class="sumTitle">How the math works</span></summary>
+    <div class="prose">
+      <p>Both the opening (over the valve, under the opening rocker) and the closing shim (the half-ring under the closing rocker) behave the same way in the arithmetic:</p>
+      <p class="mono">new shim = current shim + (measured clearance &minus; target clearance)</p>
+      <p class="mono">resulting clearance = measured clearance &minus; (new shim &minus; current shim)</p>
+      <p>A <strong>thicker</strong> shim always gives a <strong>smaller</strong> clearance, on both sides. The calculator snaps the ideal thickness to the shim sizes you listed above and picks the one that lands closest to the middle of your target range, then shows the clearance you will actually end up with.</p>
+      <p>Openers tend to tighten with use and closers tend to loosen, which is why setting openers near the low end and closers very tight leaves room for wear between services and keeps the valvetrain quieter.</p>
+      <p><strong>Presets are a convenience, not gospel.</strong> Anything marked "verify" is an approximation &mdash; check your own workshop manual and edit the numbers; whatever you type is what gets used and saved.</p>
+    </div>
+  </details>
+
+  <footer>
+    Everything stays in your browser (cookies + local storage). Download the .json if you want a real backup.
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
